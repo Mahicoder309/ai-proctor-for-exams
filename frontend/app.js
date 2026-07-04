@@ -20,7 +20,7 @@ const BACKEND_URL = (() => {
   const params = new URLSearchParams(window.location.search);
   return params.get('backend') ||
          window.BACKEND_URL ||       // can be set in a config script tag
-         'https://YOUR-RENDER-APP.onrender.com';  // ← replace this
+         'https://ai-proctor-backend-1e92.onrender.com';
 })();
 
 const WS_URL = BACKEND_URL.replace(/^http/, 'ws');
