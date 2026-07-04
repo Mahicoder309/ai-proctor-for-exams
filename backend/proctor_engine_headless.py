@@ -122,22 +122,26 @@ class HeadlessProctorEngine:
     # ------------------------------------------------------------------
 
     def _run(self) -> None:
-        face_opts = mp_vision.FaceDetectorOptions(
-            base_options=mp_python.BaseOptions(model_asset_path=FACE_MODEL),
-            running_mode=mp_vision.RunningMode.IMAGE,
-            min_detection_confidence=0.6,
-        )
-        hand_opts = mp_vision.HandLandmarkerOptions(
-            base_options=mp_python.BaseOptions(model_asset_path=HAND_MODEL),
-            running_mode=mp_vision.RunningMode.IMAGE,
-            num_hands=2,
-            min_hand_detection_confidence=0.6,
-            min_tracking_confidence=0.5,
-        )
+        try:
+            face_opts = mp_vision.FaceDetectorOptions(
+                base_options=mp_python.BaseOptions(model_asset_path=FACE_MODEL),
+                running_mode=mp_vision.RunningMode.IMAGE,
+                min_detection_confidence=0.6,
+            )
+            hand_opts = mp_vision.HandLandmarkerOptions(
+                base_options=mp_python.BaseOptions(model_asset_path=HAND_MODEL),
+                running_mode=mp_vision.RunningMode.IMAGE,
+                num_hands=2,
+                min_hand_detection_confidence=0.6,
+                min_tracking_confidence=0.5,
+            )
 
-        face_detector = mp_vision.FaceDetector.create_from_options(face_opts)
-        hand_tracker  = mp_vision.HandLandmarker.create_from_options(hand_opts)
-        obj_detector  = CheatingObjectDetector()
+            face_detector = mp_vision.FaceDetector.create_from_options(face_opts)
+            hand_tracker  = mp_vision.HandLandmarker.create_from_options(hand_opts)
+            obj_detector  = CheatingObjectDetector()
+        except Exception as e:
+            self._send({"type": "error", "message": f"Model init error: {e}"})
+            return
 
         YOLO_FRAME_SKIP = 3
         frame_idx = 0
@@ -156,27 +160,32 @@ class HeadlessProctorEngine:
         prev_time = time.time()
 
         while self._running:
-            # ── Block until a frame arrives ────────────────────────────
-            future = asyncio.run_coroutine_threadsafe(
-                self._frame_queue.get(), self._loop
-            )
             try:
-                jpeg_bytes = future.result(timeout=2.0)
-            except Exception:
+                # ── Block until a frame arrives ────────────────────────────
+                future = asyncio.run_coroutine_threadsafe(
+                    self._frame_queue.get(), self._loop
+                )
+                try:
+                    jpeg_bytes = future.result(timeout=2.0)
+                except Exception:
+                    continue
+
+                if jpeg_bytes is None:   # stop signal
+                    break
+
+                # Decode JPEG
+                nparr = np.frombuffer(jpeg_bytes, np.uint8)
+                frame = cv2.imdecode(nparr, cv2.IMREAD_COLOR)
+                if frame is None:
+                    continue
+
+                now      = time.time()
+                dt       = now - prev_time
+                prev_time = now
+            except Exception as e:
+                self._send({"type": "error", "message": f"Processing crash: {e}"})
+                time.sleep(1)
                 continue
-
-            if jpeg_bytes is None:   # stop signal
-                break
-
-            # Decode JPEG
-            nparr = np.frombuffer(jpeg_bytes, np.uint8)
-            frame = cv2.imdecode(nparr, cv2.IMREAD_COLOR)
-            if frame is None:
-                continue
-
-            now      = time.time()
-            dt       = now - prev_time
-            prev_time = now
             frame_idx += 1
 
             h, w = frame.shape[:2]
