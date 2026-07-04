@@ -1,0 +1,30 @@
+# Root .gitignore for the web_app project
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# Environment secrets — NEVER commit
+.env
+*.env
+
+# Databases
+*.db
+*.db-journal
+
+# Generated at runtime
+backend/snapshots/
+backend/reports/
+
+# Logs
+*.log
+
+# IDE
+.vscode/
+.idea/
+
+# OS
+.DS_Store
+Thumbs.db

@@ -1,0 +1,26 @@
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+
+# Environment / secrets — NEVER commit these
+.env
+*.env
+
+# Database (SQLite fallback)
+proctor.db
+proctor.db-journal
+
+# Generated at runtime
+snapshots/
+reports/
+
+# Logs
+*.log
+yolo_error.log
+
+# IDE
+.vscode/
+.idea/

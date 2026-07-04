@@ -1,0 +1,159 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>AI Exam Proctoring System</title>
+  <meta name="description" content="Real-time AI-powered exam proctoring system with face detection, gesture recognition, and object detection." />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+
+  <!-- ── Header ──────────────────────────────────────────────────── -->
+  <header class="header" id="header">
+    <div class="header-left">
+      <div class="logo-icon">🎓</div>
+      <div class="header-text">
+        <h1 class="header-title">AI Exam Proctoring System</h1>
+        <span class="header-sub">v1.0 · MediaPipe + YOLOv8 + FastAPI</span>
+      </div>
+      <span class="live-badge" id="liveBadge">● LIVE</span>
+    </div>
+    <div class="header-right">
+      <div class="connection-indicator" id="connIndicator">
+        <span class="conn-dot" id="connDot"></span>
+        <span id="connText">Disconnected</span>
+      </div>
+    </div>
+  </header>
+
+  <!-- ── Main Layout ─────────────────────────────────────────────── -->
+  <main class="main-layout">
+
+    <!-- ── Feed Panel ───────────────────────────────────────────── -->
+    <section class="feed-panel" aria-label="Live Camera Feed">
+      <div class="panel-header">
+        <span class="panel-icon">📷</span>
+        <span>Live Camera Feed</span>
+        <span class="fps-counter" id="fpsCounter">0 FPS</span>
+      </div>
+
+      <div class="feed-container">
+        <!-- Hidden: raw browser webcam -->
+        <video id="localVideo" autoplay muted playsinline style="display:none;"></video>
+        <!-- Offscreen canvas to capture frames -->
+        <canvas id="captureCanvas" style="display:none;"></canvas>
+        <!-- Display: annotated frame from backend -->
+        <canvas id="displayCanvas" class="display-canvas"></canvas>
+        <!-- Placeholder overlay -->
+        <div class="feed-placeholder" id="feedPlaceholder">
+          <div class="placeholder-icon">🎥</div>
+          <p class="placeholder-text">Camera feed will appear here</p>
+          <p class="placeholder-sub">Enter your Student ID and click Start Exam</p>
+        </div>
+      </div>
+
+      <!-- Alert banner -->
+      <div class="alert-banner" id="alertBanner" style="display:none;"></div>
+    </section>
+
+    <!-- ── Control Panel ────────────────────────────────────────── -->
+    <aside class="control-panel" aria-label="Controls">
+
+      <!-- Student ID -->
+      <div class="control-section">
+        <label class="section-label" for="studentIdInput">Student ID</label>
+        <input
+          type="text"
+          id="studentIdInput"
+          class="text-input"
+          placeholder="e.g. STU-2024-001"
+          autocomplete="off"
+          spellcheck="false"
+        />
+      </div>
+
+      <!-- Buttons -->
+      <div class="control-section btn-row">
+        <button class="btn btn-start" id="startBtn" onclick="startSession()">
+          <span class="btn-icon">▶</span> Start Exam
+        </button>
+        <button class="btn btn-stop" id="stopBtn" onclick="stopSession()" disabled>
+          <span class="btn-icon">⏹</span> End &amp; Report
+        </button>
+      </div>
+
+      <!-- Status Card -->
+      <div class="control-section">
+        <div class="status-card">
+          <div class="status-row" id="statusFace">
+            <span class="status-key">Face</span>
+            <span class="status-val" id="valFace">—</span>
+          </div>
+          <div class="status-row" id="statusGesture">
+            <span class="status-key">Gesture</span>
+            <span class="status-val" id="valGesture">—</span>
+          </div>
+          <div class="status-row">
+            <span class="status-key">Objects</span>
+            <span class="status-val success" id="valObjects">None</span>
+          </div>
+          <div class="status-row">
+            <span class="status-key">YOLO</span>
+            <span class="status-val muted" id="valYolo">—</span>
+          </div>
+          <div class="status-row">
+            <span class="status-key">Elapsed</span>
+            <span class="status-val" id="valElapsed">00:00</span>
+          </div>
+          <div class="status-row">
+            <span class="status-key">Violations</span>
+            <span class="status-val success" id="valViolations">0</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Violation Log -->
+      <div class="control-section" style="flex:1; display:flex; flex-direction:column; min-height:0;">
+        <div class="section-label">Violation Log</div>
+        <ul class="violation-log" id="violationLog" aria-live="polite" aria-label="Violation log">
+          <li class="vlog-empty" id="vlogEmpty">No violations yet.</li>
+        </ul>
+      </div>
+
+    </aside>
+  </main>
+
+  <!-- ── Status Bar ──────────────────────────────────────────────── -->
+  <footer class="status-bar" id="statusBar">
+    <span id="sbFace">Face: —</span>
+    <span class="sb-sep">|</span>
+    <span id="sbGesture">Gesture: —</span>
+    <span class="sb-sep">|</span>
+    <span id="sbState">State: IDLE</span>
+    <span style="margin-left:auto;" id="sbSession">No active session</span>
+  </footer>
+
+  <!-- ── Report Modal ─────────────────────────────────────────────── -->
+  <div class="modal-overlay" id="reportModal" style="display:none;" role="dialog" aria-modal="true">
+    <div class="modal">
+      <div class="modal-header">
+        <span class="modal-icon">📋</span>
+        <h2 class="modal-title">Session Complete</h2>
+      </div>
+      <div class="modal-body" id="reportModalBody"></div>
+      <div class="modal-footer">
+        <a class="btn btn-start" id="downloadReportBtn" href="#" target="_blank" download>
+          ⬇ Download PDF Report
+        </a>
+        <button class="btn btn-stop" onclick="closeModal()">Close</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="app.js"></script>
+</body>
+</html>
